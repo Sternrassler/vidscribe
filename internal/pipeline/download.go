@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -58,8 +59,8 @@ func fetchMetadata(ctx context.Context, cfg *Config, logw io.Writer) (*Metadata,
 
 	if err := cmd.Run(); err != nil {
 		errMsg := stderr.String()
-		if isSecretstorageError(errMsg) {
-			return nil, fmt.Errorf("secretstorage error — export cookies to a file and use --cookies-file: %w", err)
+		if isKeyringError(errMsg) {
+			return nil, fmt.Errorf("keyring/cookie-decryption error — export cookies to a file and use --cookies-file: %w", err)
 		}
 		return nil, fmt.Errorf("yt-dlp metadata failed: %s", firstLine(errMsg))
 	}
@@ -117,13 +118,13 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 		err := cmd.Run()
 		if err == nil {
 			// Find the downloaded file.
-			path := destDir + "/" + videoID + ".mp3"
+			path := filepath.Join(destDir, videoID+".mp3")
 			if _, statErr := os.Stat(path); statErr == nil {
 				return path, nil
 			}
-			// Try mp3 or m4a fallback filenames.
+			// Try fallback extensions (yt-dlp may keep original container).
 			for _, ext := range []string{"m4a", "opus", "webm"} {
-				p := destDir + "/" + videoID + "." + ext
+				p := filepath.Join(destDir, videoID+"."+ext)
 				if _, statErr := os.Stat(p); statErr == nil {
 					return p, nil
 				}
@@ -134,14 +135,14 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 		errMsg := stderr.String()
 		lastErr = fmt.Errorf("yt-dlp: %s", firstLine(errMsg))
 
-		if isSecretstorageError(errMsg) && !secretstorageRetried {
+		if isKeyringError(errMsg) && !secretstorageRetried {
 			if cfg.CookiesFile != "" {
-				fmt.Fprintf(logw, "[vidscribe] secretstorage error — retrying with cookie file %s\n", cfg.CookiesFile)
+				fmt.Fprintf(logw, "[vidscribe] keyring error — retrying with cookie file %s\n", cfg.CookiesFile)
 				secretstorageRetried = true
 				attempt-- // don't count this as a retry
 				continue
 			}
-			return "", fmt.Errorf("secretstorage unavailable — export browser cookies to a file and use --cookies-file")
+			return "", fmt.Errorf("keyring unavailable — export browser cookies to a file and use --cookies-file")
 		}
 
 		if isHTTP429(errMsg) {
@@ -200,10 +201,31 @@ func removeBrowserCookies(args []string) []string {
 	return out
 }
 
-func isSecretstorageError(s string) bool {
-	return strings.Contains(s, "secretstorage") ||
-		strings.Contains(s, "Failed to unlock keyring") ||
-		strings.Contains(s, "No module named 'secretstorage'")
+// isKeyringError detects platform-specific keyring/cookie-decryption failures
+// reported by yt-dlp across Linux (secretstorage), macOS (Keychain), and
+// Windows (DPAPI / win32crypt).
+func isKeyringError(s string) bool {
+	patterns := []string{
+		// Linux
+		"secretstorage",
+		"Failed to unlock keyring",
+		"No module named 'secretstorage'",
+		// macOS
+		"Keychain",
+		"OSStatus",
+		"security: SecKeychainSearchCopyNext",
+		"cannot be found in the keychain",
+		// Windows
+		"CryptUnprotectData",
+		"win32crypt",
+		"No module named 'win32crypt'",
+	}
+	for _, p := range patterns {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func isHTTP403(s string) bool {

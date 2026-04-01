@@ -13,9 +13,18 @@ func TestIsHTTPErrors(t *testing.T) {
 		{"ERROR: HTTP Error 429: Too Many Requests", false, true, false},
 		{"403 Forbidden (access denied)", true, false, false},
 		{"429 Too Many Requests", false, true, false},
+		// Linux keyring
 		{"secretstorage module not found", false, false, true},
 		{"Failed to unlock keyring", false, false, true},
 		{"No module named 'secretstorage'", false, false, true},
+		// macOS keyring
+		{"Keychain access denied", false, false, true},
+		{"OSStatus error -25300", false, false, true},
+		{"cannot be found in the keychain", false, false, true},
+		// Windows keyring
+		{"CryptUnprotectData failed", false, false, true},
+		{"No module named 'win32crypt'", false, false, true},
+		// unrelated
 		{"network timeout", false, false, false},
 		{"", false, false, false},
 	}
@@ -27,8 +36,8 @@ func TestIsHTTPErrors(t *testing.T) {
 		if got := isHTTP429(tt.msg); got != tt.is429 {
 			t.Errorf("isHTTP429(%q) = %v, want %v", tt.msg, got, tt.is429)
 		}
-		if got := isSecretstorageError(tt.msg); got != tt.isSecre {
-			t.Errorf("isSecretstorageError(%q) = %v, want %v", tt.msg, got, tt.isSecre)
+		if got := isKeyringError(tt.msg); got != tt.isSecre {
+			t.Errorf("isKeyringError(%q) = %v, want %v", tt.msg, got, tt.isSecre)
 		}
 	}
 }

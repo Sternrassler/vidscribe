@@ -49,6 +49,17 @@ Add to `~/.claude.json`:
 | `check_dependencies` | Verify uvx, ffmpeg, yt-dlp, whisper-ctranslate2 |
 | `list_supported_sites` | List all 1000+ yt-dlp platforms |
 
+## Platform support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Linux x86\_64 | ✅ Full | Tested |
+| Linux arm64 | ✅ Full | Falls back to openai-whisper if CTranslate2 wheels unavailable |
+| macOS x86\_64 | ✅ Full | Install ffmpeg via `brew install ffmpeg` |
+| macOS arm64 | ✅ Full | Apple Silicon native; install ffmpeg via `brew install ffmpeg` |
+| Windows x86\_64 | ✅ Full | Install ffmpeg via `winget install ffmpeg` |
+| Windows arm64 | ⚠️ Partial | Transcription may fail (no CTranslate2/PyTorch arm64 Windows wheels); yt-dlp and MCP server work |
+
 ## Flags
 
 | Flag | Default | Description |

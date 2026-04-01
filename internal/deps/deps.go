@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -15,7 +16,7 @@ func Check(engine string) error {
 		return fmt.Errorf("uvx not found — install uv: https://docs.astral.sh/uv/")
 	}
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return fmt.Errorf("ffmpeg not found — install via: apt install ffmpeg")
+		return fmt.Errorf("ffmpeg not found — %s", ffmpegInstallHint())
 	}
 	return nil
 }
@@ -70,6 +71,17 @@ func probeUvx(ctx context.Context, name, tool string, args ...string) DepStatus 
 	}
 	ver := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
 	return DepStatus{Name: name, OK: true, Version: ver}
+}
+
+func ffmpegInstallHint() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "install via: brew install ffmpeg"
+	case "windows":
+		return "install via: winget install ffmpeg  (or download from https://ffmpeg.org/download.html)"
+	default:
+		return "install via: apt install ffmpeg  (or your distro's package manager)"
+	}
 }
 
 func probeUvxFrom(ctx context.Context, name, pkg, tool string, args ...string) DepStatus {
