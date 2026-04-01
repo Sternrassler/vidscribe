@@ -31,6 +31,9 @@ vidscribe "https://youtube.com/watch?v=XYZ" \
   --language de \
   --format txt,md,json,srt,vtt
 
+# GPU acceleration (float16 is selected automatically when device is auto or cuda)
+vidscribe "https://youtube.com/watch?v=XYZ" --model large --device cuda
+
 # Check dependencies
 vidscribe --mcp  # then call check_dependencies via MCP
 ```
@@ -58,6 +61,20 @@ Add to `~/.claude.json`:
 | `check_dependencies` | Verify uvx, ffmpeg, yt-dlp, whisper-ctranslate2 |
 | `list_supported_sites` | List all 1000+ yt-dlp platforms |
 
+**`transcribe_video` parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `url` | required | Video URL |
+| `model` | `small` | Whisper model: tiny\|base\|small\|medium\|large |
+| `language` | `auto` | Language code or `auto` |
+| `output_dir` | `./transcripts` | Output directory |
+| `cookies_browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge |
+| `cookies_file` | — | Netscape cookie file |
+| `js_runtime` | auto | JS runtime: `node:/path/to/node` or `deno:/path/to/deno` |
+| `engine` | `faster` | Whisper engine: `faster` or `openai` |
+| `format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
+
 ## Platform support
 
 | Platform | Status | Notes |
@@ -69,6 +86,10 @@ Add to `~/.claude.json`:
 | Windows x86\_64 | ✅ Full | Install ffmpeg via `winget install ffmpeg` |
 | Windows arm64 | ⚠️ Partial | Transcription may fail (no CTranslate2/PyTorch arm64 Windows wheels); yt-dlp and MCP server work |
 
+## YouTube compatibility
+
+yt-dlp ≥ 2025 requires a JavaScript runtime for YouTube extraction. vidscribe auto-detects `node` from PATH and passes it automatically. If extraction fails, install Node.js or deno and ensure it is in PATH. On Linux, `secretstorage` is injected automatically via `uvx --with secretstorage` to enable browser cookie decryption without manual Python package installation.
+
 ## Flags
 
 | Flag | Default | Description |
@@ -78,8 +99,10 @@ Add to `~/.claude.json`:
 | `--output-dir` | `./transcripts` | Output directory |
 | `--cookies-browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge |
 | `--cookies-file` | — | Netscape cookie file (fallback if secretstorage unavailable) |
-| `--js-runtime` | — | JS runtime for yt-dlp extractor args: `deno` or `node` |
+| `--js-runtime` | auto | JS runtime for yt-dlp YouTube extraction: `node:/path/to/node` or `deno:/path/to/deno`. Auto-detected from PATH if omitted |
 | `--format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
 | `--engine` | `faster` | Whisper engine: `faster` or `openai` |
+| `--device` | `auto` | Compute device: `auto`, `cpu`, `cuda`. `auto` selects CUDA if available, otherwise CPU |
+| `--compute-type` | `int8` | Quantization: `int8`, `int8_float16`, `float16`, `float32`. Defaults to `float16` when `--device` is `auto` or `cuda` |
 | `--mcp` | — | Start as MCP server (stdio) |
 | `--verbose` | — | Verbose output |

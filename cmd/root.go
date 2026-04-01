@@ -21,6 +21,8 @@ var (
 	jsRuntime      string
 	format         string
 	engine         string
+	device         string
+	computeType    string
 	mcpMode        bool
 	verbose        bool
 )
@@ -59,6 +61,8 @@ func init() {
 	rootCmd.Flags().StringVar(&jsRuntime, "js-runtime", "", "JS runtime for yt-dlp extractor args: deno|node")
 	rootCmd.Flags().StringVar(&format, "format", "txt,md", "Output formats: txt,md,json,srt,vtt (comma-separated)")
 	rootCmd.Flags().StringVar(&engine, "engine", "faster", "Whisper engine: faster|openai")
+	rootCmd.Flags().StringVar(&device, "device", "auto", "Compute device: cpu|cuda|auto")
+	rootCmd.Flags().StringVar(&computeType, "compute-type", "int8", "Compute type: int8|int8_float16|float16|float32")
 	rootCmd.Flags().BoolVar(&mcpMode, "mcp", false, "Start as MCP server (stdio)")
 	rootCmd.Flags().BoolVar(&verbose, "verbose", false, "Verbose output")
 }
@@ -78,6 +82,10 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if !cmd.Flags().Changed("compute-type") && (device == "auto" || device == "cuda") {
+		computeType = "float16"
+	}
+
 	cfg := &pipeline.Config{
 		URL:            url,
 		Model:          model,
@@ -88,6 +96,8 @@ func run(cmd *cobra.Command, args []string) error {
 		JSRuntime:      jsRuntime,
 		Formats:        strings.Split(format, ","),
 		Engine:         engine,
+		Device:         device,
+		ComputeType:    computeType,
 		Verbose:        verbose,
 	}
 

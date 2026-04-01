@@ -49,7 +49,7 @@ func fetchMetadata(ctx context.Context, cfg *Config, logw io.Writer) (*Metadata,
 	args = append(args, "--dump-json", "--no-download", cfg.URL)
 
 	var stdout, stderr bytes.Buffer
-	cmd := ytdlpCmd(ctx, args...)
+	cmd := YtdlpCmd(ctx, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -108,7 +108,7 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 		}
 
 		var stderr bytes.Buffer
-		cmd := ytdlpCmd(ctx, effectiveArgs...)
+		cmd := YtdlpCmd(ctx, effectiveArgs...)
 		cmd.Stderr = &stderr
 
 		if cfg.Verbose {
@@ -165,9 +165,9 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 	return "", fmt.Errorf("download failed after %d attempts: %w", maxRetries, lastErr)
 }
 
-// ytdlpCmd constructs the yt-dlp exec.Cmd using uvx.
-func ytdlpCmd(ctx context.Context, args ...string) *exec.Cmd {
-	uvxArgs := append([]string{"yt-dlp"}, args...)
+// YtdlpCmd constructs the yt-dlp exec.Cmd using uvx.
+func YtdlpCmd(ctx context.Context, args ...string) *exec.Cmd {
+	uvxArgs := append([]string{"--with", "secretstorage", "yt-dlp"}, args...)
 	return exec.CommandContext(ctx, "uvx", uvxArgs...)
 }
 
@@ -181,8 +181,14 @@ func buildBaseArgs(cfg *Config) []string {
 		args = append(args, "--cookies", cfg.CookiesFile)
 	}
 
-	if cfg.JSRuntime != "" {
-		args = append(args, "--extractor-args", "youtube:player_client="+cfg.JSRuntime)
+	jsRuntime := cfg.JSRuntime
+	if jsRuntime == "" {
+		if p, err := exec.LookPath("node"); err == nil {
+			jsRuntime = "node:" + p
+		}
+	}
+	if jsRuntime != "" {
+		args = append(args, "--js-runtimes", jsRuntime, "--remote-components", "ejs:github")
 	}
 
 	return args

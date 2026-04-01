@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/devsternrassler/vidscribe/internal/deps"
@@ -57,6 +56,9 @@ func transcribeVideoTool() mcplib.Tool {
 		mcplib.WithString("format",
 			mcplib.Description("Comma-separated output formats: txt, md, json, srt, vtt (default: txt,md)"),
 		),
+		mcplib.WithString("js_runtime",
+			mcplib.Description("JS runtime for yt-dlp YouTube extraction, e.g. 'node:/usr/bin/node' or 'deno:/usr/bin/deno' (auto-detected if omitted)"),
+		),
 	)
 }
 
@@ -78,6 +80,7 @@ func handleTranscribeVideo(ctx context.Context, req mcplib.CallToolRequest) (*mc
 	}
 	cfg.CookiesBrowser, _ = args["cookies_browser"].(string)
 	cfg.CookiesFile, _ = args["cookies_file"].(string)
+	cfg.JSRuntime, _ = args["js_runtime"].(string)
 
 	var logBuf strings.Builder
 	paths, err := pipeline.Run(ctx, cfg, &logBuf)
@@ -148,7 +151,8 @@ func listSupportedSitesTool() mcplib.Tool {
 }
 
 func handleListSupportedSites(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	out, err := exec.CommandContext(ctx, "uvx", "yt-dlp", "--list-extractors").Output()
+	cmd := pipeline.YtdlpCmd(ctx, "--list-extractors")
+	out, err := cmd.Output()
 	if err != nil {
 		return mcplib.NewToolResultError("could not list extractors: " + err.Error()), nil
 	}

@@ -13,6 +13,8 @@ type Config struct {
 	JSRuntime      string
 	Formats        []string
 	Engine         string
+	Device         string
+	ComputeType    string
 	Verbose        bool
 }
 

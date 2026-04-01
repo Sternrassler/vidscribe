@@ -61,8 +61,8 @@ func runFasterWhisper(ctx context.Context, cfg *Config, audioPath, outDir string
 		audioPath,
 		"--model", cfg.Model,
 		"--language", lang,
-		"--device", "cpu",
-		"--compute_type", "int8",
+		"--device", cfg.Device,
+		"--compute_type", cfg.ComputeType,
 		"--output_dir", outDir,
 		"--output_format", "all",
 	}
