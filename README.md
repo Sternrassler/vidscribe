@@ -69,6 +69,7 @@ Add to `~/.claude.json`:
 | `--output-dir` | `./transcripts` | Output directory |
 | `--cookies-browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge |
 | `--cookies-file` | — | Netscape cookie file (fallback if secretstorage unavailable) |
+| `--js-runtime` | — | JS runtime for yt-dlp extractor args: `deno` or `node` |
 | `--format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
 | `--engine` | `faster` | Whisper engine: `faster` or `openai` |
 | `--mcp` | — | Start as MCP server (stdio) |
