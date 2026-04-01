@@ -63,8 +63,18 @@ func runFasterWhisper(ctx context.Context, cfg *Config, audioPath, outDir string
 
 	// faster-whisper has no standalone CLI; whisper-ctranslate2 wraps the same
 	// CTranslate2 engine with an identical interface.
+	// nvidia-cublas-cu12 provides libcublas.so.12; a Python wrapper sets LD_LIBRARY_PATH
+	// so ctranslate2 can find it without a system-wide CUDA toolkit install.
+	script := `
+import nvidia.cublas, pathlib, subprocess, sys, os
+lib_dir = str(pathlib.Path(nvidia.cublas.__spec__.submodule_search_locations[0]) / "lib")
+env = os.environ.copy()
+env["LD_LIBRARY_PATH"] = lib_dir + ":" + env.get("LD_LIBRARY_PATH", "")
+sys.exit(subprocess.call(["whisper-ctranslate2"] + sys.argv[1:], env=env))
+`
 	args := []string{
-		"--from", "whisper-ctranslate2", "whisper-ctranslate2",
+		"--with", "nvidia-cublas-cu12",
+		"--from", "whisper-ctranslate2", "python3", "-c", script,
 		audioPath,
 		"--model", cfg.Model,
 		"--language", lang,
