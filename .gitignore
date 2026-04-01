@@ -1,0 +1,6 @@
+dist/
+transcripts/
+*.mp3
+*.m4a
+*.opus
+*.webm
