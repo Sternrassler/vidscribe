@@ -54,11 +54,15 @@ func runFasterWhisper(ctx context.Context, cfg *Config, audioPath, outDir string
 		lang = "auto"
 	}
 
+	// faster-whisper has no standalone CLI; whisper-ctranslate2 wraps the same
+	// CTranslate2 engine with an identical interface.
 	args := []string{
-		"--from", "faster-whisper", "faster-whisper",
+		"--from", "whisper-ctranslate2", "whisper-ctranslate2",
 		audioPath,
 		"--model", cfg.Model,
 		"--language", lang,
+		"--device", "cpu",
+		"--compute_type", "int8",
 		"--output_dir", outDir,
 		"--output_format", "all",
 	}

@@ -47,7 +47,7 @@ func Report(engine string) []DepStatus {
 	if engine == "openai" {
 		results = append(results, probeUvxFrom(ctx, "openai-whisper", "openai-whisper", "whisper", "--help"))
 	} else {
-		results = append(results, probeUvxFrom(ctx, "faster-whisper", "faster-whisper", "faster-whisper", "--help"))
+		results = append(results, probeUvxFrom(ctx, "whisper-ctranslate2", "whisper-ctranslate2", "whisper-ctranslate2", "--help"))
 	}
 
 	return results
