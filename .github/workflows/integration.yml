@@ -6,8 +6,8 @@ on:
     - cron: "0 4 * * 1"  # montags 04:00 UTC
 
 jobs:
-  integration:
-    name: Integration tests
+  smoke:
+    name: Smoke tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,5 +23,5 @@ jobs:
       - name: Install ffmpeg
         run: sudo apt-get install -y ffmpeg
 
-      - name: Run all tests (incl. integration)
-        run: go test ./... -v -count=1 -timeout 120s
+      - name: Run smoke tests (unit + smoke)
+        run: go test -tags=smoke ./... -v -count=1 -timeout 120s

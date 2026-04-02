@@ -65,14 +65,16 @@ Add to `~/.claude.json`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `url` | required | Video URL |
+| `url` | required | Video URL (http/https only) |
 | `model` | `small` | Whisper model: tiny\|base\|small\|medium\|large |
 | `language` | `auto` | Language code or `auto` |
 | `output_dir` | `./transcripts` | Output directory |
-| `cookies_browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge |
+| `cookies_browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge\|chromium\|brave\|opera\|vivaldi |
 | `cookies_file` | — | Netscape cookie file |
 | `js_runtime` | auto | JS runtime: `node:/path/to/node` or `deno:/path/to/deno` |
 | `engine` | `faster` | Whisper engine: `faster` or `openai` |
+| `device` | `auto` | Compute device: `auto`, `cpu`, `cuda`. `auto` selects CUDA if available |
+| `compute_type` | `float16`/`int8` | Quantization: `int8`, `int8_float16`, `float16`, `float32`. Defaults to `float16` for CUDA, `int8` for CPU |
 | `format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
 
 ## Platform support
@@ -106,3 +108,34 @@ yt-dlp ≥ 2025 requires a JavaScript runtime for YouTube extraction. vidscribe 
 | `--compute-type` | `int8` | Quantization: `int8`, `int8_float16`, `float16`, `float32`. Defaults to `float16` when `--device` is `auto` or `cuda` |
 | `--mcp` | — | Start as MCP server (stdio) |
 | `--verbose` | — | Verbose output |
+
+## Testing
+
+Tests are organized in three tiers using Go build tags:
+
+```bash
+# Unit tests — pure logic, no external deps, <1s
+make test
+
+# Smoke tests — requires uvx + ffmpeg in PATH
+make test-smoke
+
+# E2E tests — requires uvx + ffmpeg + network, full transcription
+make test-e2e
+
+# Performance benchmarks (CPU vs CUDA vs openai-whisper)
+make test-bench
+```
+
+Override the test video (default: "Me at the zoo", 19s):
+
+```bash
+VIDSCRIBE_TEST_URL="https://youtube.com/watch?v=..." make test-e2e
+VIDSCRIBE_TEST_BROWSER=firefox make test-e2e
+```
+
+| Tier | Build tag | CI | What |
+|------|-----------|-----|------|
+| Unit | — | Every push | Config, format, download helpers, input validation |
+| Smoke | `smoke` | Weekly (integration.yml) | Dependency checks, MCP protocol, yt-dlp listing |
+| E2E | `e2e` | Manual | Full pipeline, engine/device comparison, model comparison |
