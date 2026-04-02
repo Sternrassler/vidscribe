@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/devsternrassler/vidscribe/internal/cuda"
+	"github.com/sternrassler/vidscribe/internal/cuda"
 )
 
 // Check verifies that the minimum required tools are in PATH.

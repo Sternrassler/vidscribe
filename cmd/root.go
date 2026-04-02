@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/devsternrassler/vidscribe/internal/deps"
-	"github.com/devsternrassler/vidscribe/internal/mcp"
-	"github.com/devsternrassler/vidscribe/internal/pipeline"
+	"github.com/sternrassler/vidscribe/internal/deps"
+	"github.com/sternrassler/vidscribe/internal/mcp"
+	"github.com/sternrassler/vidscribe/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 

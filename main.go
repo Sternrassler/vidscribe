@@ -1,6 +1,6 @@
 package main
 
-import "github.com/devsternrassler/vidscribe/cmd"
+import "github.com/sternrassler/vidscribe/cmd"
 
 // Set via goreleaser ldflags: -X main.version=... -X main.commit=... -X main.date=...
 var (

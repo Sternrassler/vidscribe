@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/devsternrassler/vidscribe/internal/deps"
-	"github.com/devsternrassler/vidscribe/internal/pipeline"
+	"github.com/sternrassler/vidscribe/internal/deps"
+	"github.com/sternrassler/vidscribe/internal/pipeline"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

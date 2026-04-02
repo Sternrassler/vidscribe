@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/devsternrassler/vidscribe/internal/cuda"
+	"github.com/sternrassler/vidscribe/internal/cuda"
 )
 
 // TranscribeResult holds the paths of files produced by the transcription step.

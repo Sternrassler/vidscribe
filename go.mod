@@ -1,4 +1,4 @@
-module github.com/devsternrassler/vidscribe
+module github.com/sternrassler/vidscribe
 
 go 1.26.1
 
