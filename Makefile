@@ -22,8 +22,9 @@ test-smoke:
 test-e2e:
 	go test -tags=e2e ./... -count=1 -v -timeout 600s
 
-# Performance benchmarks (requires uvx + ffmpeg + network)
+# Performance comparison table + Go benchmarks (requires uvx + ffmpeg + network)
 test-bench:
+	go test -tags=e2e ./internal/pipeline/ -run TestE2E_PerformanceComparison -count=1 -v -timeout 600s
 	go test -tags=e2e ./internal/pipeline/ -bench=BenchmarkTranscribe -benchmem -count=1 -timeout 600s
 
 # All tests with extended timeout

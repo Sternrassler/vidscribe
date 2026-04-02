@@ -13,6 +13,26 @@ import (
 	"time"
 )
 
+// showProgress prints elapsed time to stderr every 5s for long-running tests.
+// Returns a stop function. Output bypasses Go's test buffering.
+func showProgress(label string) func() {
+	stop := make(chan struct{})
+	go func() {
+		start := time.Now()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Fprintf(os.Stderr, "  ⏳ %s … %s\n", label, time.Since(start).Round(time.Second))
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() { close(stop) }
+}
+
 // testVideoURL returns the video URL for E2E tests.
 // Override via VIDSCRIBE_TEST_URL for a different/longer video.
 // Default: "Me at the zoo" — first YouTube video ever (19s, speech, permanent).
@@ -70,6 +90,8 @@ func baseConfig(outDir string) *Config {
 
 func TestE2E_FasterWhisper_CPU(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("faster-whisper CPU")
+	defer done()
 	outDir := t.TempDir()
 	cfg := baseConfig(outDir)
 	cfg.Formats = []string{"txt", "md", "srt", "vtt", "json"}
@@ -92,6 +114,8 @@ func TestE2E_FasterWhisper_CUDA(t *testing.T) {
 	if !hasCUDA() {
 		t.Skip("no NVIDIA GPU")
 	}
+	done := showProgress("faster-whisper CUDA")
+	defer done()
 	outDir := t.TempDir()
 	cfg := baseConfig(outDir)
 	cfg.Device = "cuda"
@@ -112,6 +136,8 @@ func TestE2E_FasterWhisper_CUDA(t *testing.T) {
 
 func TestE2E_OpenAIWhisper(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("openai-whisper CPU")
+	defer done()
 	outDir := t.TempDir()
 	cfg := baseConfig(outDir)
 	cfg.Engine = "openai"
@@ -131,6 +157,8 @@ func TestE2E_OpenAIWhisper(t *testing.T) {
 
 func TestE2E_AllFormats(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("all formats")
+	defer done()
 	outDir := t.TempDir()
 	cfg := baseConfig(outDir)
 	cfg.Formats = []string{"txt", "md", "srt", "vtt", "json"}
@@ -157,6 +185,8 @@ func TestE2E_AllFormats(t *testing.T) {
 
 func TestE2E_PerformanceComparison(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("performance comparison")
+	defer done()
 	url := testVideoURL()
 
 	type result struct {
@@ -323,6 +353,8 @@ func verifyTranscriptContent(t *testing.T, paths []string) {
 
 func TestE2E_Download(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("download")
+	defer done()
 	cfg := baseConfig(t.TempDir())
 
 	start := time.Now()
@@ -364,6 +396,8 @@ func TestE2E_Download(t *testing.T) {
 
 func TestE2E_Transcribe(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("transcribe")
+	defer done()
 	cfg := baseConfig(t.TempDir())
 
 	audioPath, _, err := Download(context.Background(), cfg, os.Stderr)
@@ -410,6 +444,8 @@ func TestE2E_Transcribe(t *testing.T) {
 
 func TestE2E_ModelComparison(t *testing.T) {
 	skipIfNoDeps(t)
+	done := showProgress("model comparison")
+	defer done()
 	url := testVideoURL()
 
 	models := []string{"tiny", "base", "small"}

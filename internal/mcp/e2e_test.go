@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,24 @@ import (
 	"testing"
 	"time"
 )
+
+func showProgress(label string) func() {
+	stop := make(chan struct{})
+	go func() {
+		start := time.Now()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Fprintf(os.Stderr, "  ⏳ %s … %s\n", label, time.Since(start).Round(time.Second))
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() { close(stop) }
+}
 
 func testVideoURL() string {
 	if u := os.Getenv("VIDSCRIBE_TEST_URL"); u != "" {
@@ -26,6 +45,8 @@ func testCookiesBrowser() string {
 }
 
 func TestE2E_MCP_TranscribeVideo(t *testing.T) {
+	done := showProgress("MCP transcribe CPU")
+	defer done()
 	outDir := t.TempDir()
 	s := startMCPServer(t)
 	s.handshake(t)
@@ -69,6 +90,8 @@ func TestE2E_MCP_TranscribeVideo_CUDA(t *testing.T) {
 	if _, err := exec.LookPath("nvidia-smi"); err != nil {
 		t.Skip("no nvidia-smi")
 	}
+	done := showProgress("MCP transcribe CUDA")
+	defer done()
 	outDir := t.TempDir()
 	s := startMCPServer(t)
 	s.handshake(t)
