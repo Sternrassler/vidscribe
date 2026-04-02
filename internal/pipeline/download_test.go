@@ -1,6 +1,11 @@
 package pipeline
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestIsHTTPErrors(t *testing.T) {
 	tests := []struct {
@@ -138,5 +143,89 @@ func TestRemoveBrowserCookies(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("removeBrowserCookies[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestRemoveBrowserCookies_TrailingFlag(t *testing.T) {
+	// --cookies-from-browser as last element (no value) must not panic.
+	input := []string{"--no-playlist", "--cookies-from-browser"}
+	got := removeBrowserCookies(input)
+	if len(got) != 1 || got[0] != "--no-playlist" {
+		t.Errorf("removeBrowserCookies trailing = %v, want [--no-playlist]", got)
+	}
+}
+
+func TestFindAudioFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// No audio file → error.
+	_, err := findAudioFile(dir)
+	if err == nil {
+		t.Fatal("expected error for empty dir")
+	}
+
+	// Create mp3 → found.
+	mp3 := filepath.Join(dir, "abc123.mp3")
+	os.WriteFile(mp3, []byte("fake"), 0o644)
+	got, err := findAudioFile(dir)
+	if err != nil {
+		t.Fatalf("findAudioFile: %v", err)
+	}
+	if got != mp3 {
+		t.Errorf("findAudioFile = %q, want %q", got, mp3)
+	}
+}
+
+func TestFindAudioFile_FallbackExtension(t *testing.T) {
+	dir := t.TempDir()
+
+	// Only m4a present (no mp3) → should find m4a.
+	m4a := filepath.Join(dir, "vid.m4a")
+	os.WriteFile(m4a, []byte("fake"), 0o644)
+	got, err := findAudioFile(dir)
+	if err != nil {
+		t.Fatalf("findAudioFile: %v", err)
+	}
+	if got != m4a {
+		t.Errorf("findAudioFile = %q, want %q", got, m4a)
+	}
+}
+
+func TestParseInfoJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	// No .info.json → error.
+	_, err := parseInfoJSON(dir)
+	if err == nil {
+		t.Fatal("expected error for empty dir")
+	}
+
+	// Write valid .info.json.
+	meta := Metadata{
+		ID:         "abc123",
+		Title:      "Test Video",
+		Channel:    "TestChan",
+		Duration:   120.5,
+		UploadDate: "20240315",
+		WebpageURL: "https://example.com/watch?v=abc123",
+	}
+	data, _ := json.Marshal(meta)
+	os.WriteFile(filepath.Join(dir, "abc123.info.json"), data, 0o644)
+
+	got, err := parseInfoJSON(dir)
+	if err != nil {
+		t.Fatalf("parseInfoJSON: %v", err)
+	}
+	if got.ID != "abc123" || got.Title != "Test Video" || got.Channel != "TestChan" {
+		t.Errorf("parseInfoJSON = %+v, want matching fields", got)
+	}
+}
+
+func TestParseInfoJSON_Invalid(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "bad.info.json"), []byte("{invalid"), 0o644)
+	_, err := parseInfoJSON(dir)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
 }

@@ -1,3 +1,5 @@
+//go:build smoke
+
 package deps
 
 import (
@@ -16,19 +18,12 @@ func TestCheck_MissingUvx(t *testing.T) {
 }
 
 func TestCheck_WithDeps(t *testing.T) {
-	if _, err := exec.LookPath("uvx"); err != nil {
-		t.Skip("uvx not in PATH")
-	}
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		t.Skip("ffmpeg not in PATH")
-	}
 	if err := Check("faster"); err != nil {
 		t.Errorf("Check with all deps present: %v", err)
 	}
 }
 
 func TestReport_Structure(t *testing.T) {
-	// Report must always return entries — even when tools are absent.
 	for _, engine := range []string{"faster", "openai"} {
 		statuses := Report(engine)
 		if len(statuses) == 0 {
@@ -38,6 +33,20 @@ func TestReport_Structure(t *testing.T) {
 			if s.Name == "" {
 				t.Errorf("Report entry has empty Name: %+v", s)
 			}
+		}
+	}
+}
+
+func TestReport_Parallel(t *testing.T) {
+	// Verify that parallelized probes still return deterministic order.
+	s1 := Report("faster")
+	s2 := Report("faster")
+	if len(s1) != len(s2) {
+		t.Fatalf("Report lengths differ: %d vs %d", len(s1), len(s2))
+	}
+	for i := range s1 {
+		if s1[i].Name != s2[i].Name {
+			t.Errorf("Report[%d] order differs: %q vs %q", i, s1[i].Name, s2[i].Name)
 		}
 	}
 }

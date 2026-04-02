@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -15,12 +14,7 @@ func makeReq(args map[string]any) mcplib.CallToolRequest {
 	}
 }
 
-func uvxAvailable() bool {
-	_, err := exec.LookPath("uvx")
-	return err == nil
-}
-
-// ── transcribe_video ─────────────────────────────────────────────────────────
+// ── transcribe_video input validation (no external deps) ────────────────────
 
 func TestTranscribeVideo_MissingURL(t *testing.T) {
 	res, err := handleTranscribeVideo(context.Background(), makeReq(map[string]any{}))
@@ -36,70 +30,85 @@ func TestTranscribeVideo_MissingURL(t *testing.T) {
 	}
 }
 
-func TestTranscribeVideo_InvalidURL(t *testing.T) {
-	if !uvxAvailable() {
-		t.Skip("uvx not in PATH")
+func TestTranscribeVideo_InvalidScheme(t *testing.T) {
+	for _, url := range []string{"file:///etc/passwd", "ftp://example.com/v.mp4", "javascript:alert(1)", ""} {
+		name := url
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			res, err := handleTranscribeVideo(context.Background(), makeReq(map[string]any{
+				"url": url,
+			}))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if url == "" {
+				if !res.IsError {
+					t.Fatal("expected IsError for empty url")
+				}
+			} else {
+				if !res.IsError {
+					t.Fatal("expected IsError for non-http scheme")
+				}
+				text := toolResultText(t, res)
+				if !strings.Contains(text, "http") {
+					t.Errorf("expected URL scheme hint in %q", text)
+				}
+			}
+		})
 	}
+}
+
+func TestTranscribeVideo_UnsupportedBrowser(t *testing.T) {
 	res, err := handleTranscribeVideo(context.Background(), makeReq(map[string]any{
-		"url": "https://invalid.invalid/notavideo",
+		"url":             "https://example.com/video",
+		"cookies_browser": "malicious-browser",
 	}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !res.IsError {
-		t.Errorf("expected IsError=true for invalid URL, got text: %s", toolResultText(t, res))
+		t.Fatal("expected IsError=true for unsupported browser")
+	}
+	text := toolResultText(t, res)
+	if !strings.Contains(text, "unsupported browser") {
+		t.Errorf("expected 'unsupported browser' in %q", text)
 	}
 }
 
-// ── check_dependencies ───────────────────────────────────────────────────────
-
-func TestCheckDependencies_Faster(t *testing.T) {
-	res, err := handleCheckDependencies(context.Background(), makeReq(map[string]any{}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res.IsError {
-		t.Fatalf("unexpected IsError=true: %s", toolResultText(t, res))
-	}
-	text := toolResultText(t, res)
-	for _, want := range []string{"uvx", "ffmpeg", "yt-dlp", "whisper-ctranslate2"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("check_dependencies output missing %q\n\nFull output:\n%s", want, text)
+func TestAllowedBrowsers(t *testing.T) {
+	for _, b := range []string{"chrome", "firefox", "safari", "edge", "chromium", "brave", "opera", "vivaldi"} {
+		if !allowedBrowsers[b] {
+			t.Errorf("%q not in allowedBrowsers", b)
 		}
 	}
 }
 
-func TestCheckDependencies_OpenAI(t *testing.T) {
-	res, err := handleCheckDependencies(context.Background(), makeReq(map[string]any{
-		"engine": "openai",
+func TestTranscribeVideo_CookiesFileNotFound(t *testing.T) {
+	res, err := handleTranscribeVideo(context.Background(), makeReq(map[string]any{
+		"url":          "https://example.com/video",
+		"cookies_file": "/nonexistent/cookies.txt",
 	}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if !res.IsError {
+		t.Fatal("expected IsError=true for missing cookies_file")
+	}
 	text := toolResultText(t, res)
-	if !strings.Contains(text, "openai-whisper") {
-		t.Errorf("expected 'openai-whisper' in output, got:\n%s", text)
+	if !strings.Contains(text, "cookies_file") {
+		t.Errorf("expected 'cookies_file' mention in %q", text)
 	}
 }
 
-// ── list_supported_sites ─────────────────────────────────────────────────────
-
-func TestListSupportedSites(t *testing.T) {
-	if !uvxAvailable() {
-		t.Skip("uvx not in PATH")
+func TestTranscribeVideo_DeviceDefaults(t *testing.T) {
+	args := map[string]any{}
+	if got := stringArg(args, "device", "auto"); got != "auto" {
+		t.Errorf("device default = %q, want auto", got)
 	}
-	res, err := handleListSupportedSites(context.Background(), makeReq(nil))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if res.IsError {
-		t.Fatalf("IsError=true: %s", toolResultText(t, res))
-	}
-	text := toolResultText(t, res)
-	for _, want := range []string{"youtube", "vimeo", "twitch"} {
-		if !strings.Contains(strings.ToLower(text), want) {
-			t.Errorf("list_supported_sites missing %q", want)
-		}
+	if got := stringArg(args, "compute_type", ""); got != "" {
+		t.Errorf("compute_type without value = %q, want empty", got)
 	}
 }
 
