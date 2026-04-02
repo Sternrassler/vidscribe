@@ -7,7 +7,10 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/devsternrassler/vidscribe/internal/cuda"
 )
 
 // Check verifies that the minimum required tools are in PATH.
@@ -29,26 +32,44 @@ type DepStatus struct {
 }
 
 // Report probes all dependencies and returns their status.
+// Probes run in parallel to minimize wall-clock time.
 func Report(engine string) []DepStatus {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	var results []DepStatus
+	type indexedResult struct {
+		idx    int
+		status DepStatus
+	}
 
-	// uvx
-	results = append(results, probe(ctx, "uvx", "uvx", "--version"))
+	whisperProbe := func() DepStatus {
+		if engine == "openai" {
+			return probeUvxFrom(ctx, "openai-whisper", "openai-whisper", "whisper", "--help")
+		}
+		return probeUvxFrom(ctx, "whisper-ctranslate2", "whisper-ctranslate2", "whisper-ctranslate2", "--help")
+	}
 
-	// ffmpeg
-	results = append(results, probe(ctx, "ffmpeg", "ffmpeg", "-version"))
+	probes := []func() DepStatus{
+		func() DepStatus { return probe(ctx, "uvx", "uvx", "--version") },
+		func() DepStatus { return probe(ctx, "ffmpeg", "ffmpeg", "-version") },
+		func() DepStatus { return probeUvx(ctx, "yt-dlp", "yt-dlp", "--version") },
+		whisperProbe,
+	}
 
-	// yt-dlp via uvx
-	results = append(results, probeUvx(ctx, "yt-dlp", "yt-dlp", "--version"))
+	ch := make(chan indexedResult, len(probes))
+	var wg sync.WaitGroup
+	for i, p := range probes {
+		wg.Add(1)
+		go func(idx int, fn func() DepStatus) {
+			defer wg.Done()
+			ch <- indexedResult{idx, fn()}
+		}(i, p)
+	}
+	go func() { wg.Wait(); close(ch) }()
 
-	// whisper engine
-	if engine == "openai" {
-		results = append(results, probeUvxFrom(ctx, "openai-whisper", "openai-whisper", "whisper", "--help"))
-	} else {
-		results = append(results, probeUvxFrom(ctx, "whisper-ctranslate2", "whisper-ctranslate2", "whisper-ctranslate2", "--help"))
+	results := make([]DepStatus, len(probes))
+	for r := range ch {
+		results[r.idx] = r.status
 	}
 
 	// CUDA (only when NVIDIA GPU is present)
@@ -71,17 +92,8 @@ func probeCUDA(ctx context.Context) *DepStatus {
 	gpuName := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
 
 	// Check if libcublas.so.12 is loadable via nvidia-cublas-cu12
-	script := `import nvidia.cublas, pathlib, ctypes, sys
-lib = pathlib.Path(nvidia.cublas.__spec__.submodule_search_locations[0]) / "lib" / "libcublas.so.12"
-try:
-    ctypes.CDLL(str(lib))
-    print("ok")
-except Exception as e:
-    print("fail: " + str(e))
-    sys.exit(1)
-`
-	cmd := exec.CommandContext(ctx, "uvx", "--with", "nvidia-cublas-cu12",
-		"--from", "whisper-ctranslate2", "python3", "-c", script)
+	cmd := exec.CommandContext(ctx, "uvx", "--with", cuda.UvxCublasFlag,
+		"--from", "whisper-ctranslate2", "python3", "-c", cuda.CheckScript)
 	cublasOut, cublasErr := cmd.Output()
 	if cublasErr != nil || !strings.Contains(string(cublasOut), "ok") {
 		return &DepStatus{

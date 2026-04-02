@@ -75,7 +75,6 @@ func writeMD(dst string, meta *Metadata, transcript string) error {
 	if err != nil {
 		return fmt.Errorf("create %s: %w", dst, err)
 	}
-	defer f.Close()
 
 	data := struct {
 		Title      string
@@ -93,7 +92,11 @@ func writeMD(dst string, meta *Metadata, transcript string) error {
 		Transcript: strings.TrimSpace(transcript),
 	}
 
-	return tmpl.Execute(f, data)
+	err = tmpl.Execute(f, data)
+	if closeErr := f.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	return err
 }
 
 func channelName(m *Metadata) string {

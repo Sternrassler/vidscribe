@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/devsternrassler/vidscribe/internal/cuda"
 )
 
 // TranscribeResult holds the paths of files produced by the transcription step.
@@ -56,32 +58,23 @@ func Transcribe(ctx context.Context, cfg *Config, audioPath string, logw io.Writ
 }
 
 func runFasterWhisper(ctx context.Context, cfg *Config, audioPath, outDir string, logw io.Writer) error {
-	lang := cfg.Language
-	if lang == "auto" {
-		lang = "auto"
-	}
-
 	// faster-whisper has no standalone CLI; whisper-ctranslate2 wraps the same
 	// CTranslate2 engine with an identical interface.
 	// nvidia-cublas-cu12 provides libcublas.so.12; a Python wrapper sets LD_LIBRARY_PATH
 	// so ctranslate2 can find it without a system-wide CUDA toolkit install.
-	script := `
-import nvidia.cublas, pathlib, subprocess, sys, os
-lib_dir = str(pathlib.Path(nvidia.cublas.__spec__.submodule_search_locations[0]) / "lib")
-env = os.environ.copy()
-env["LD_LIBRARY_PATH"] = lib_dir + ":" + env.get("LD_LIBRARY_PATH", "")
-sys.exit(subprocess.call(["whisper-ctranslate2"] + sys.argv[1:], env=env))
-`
 	args := []string{
-		"--with", "nvidia-cublas-cu12",
-		"--from", "whisper-ctranslate2", "python3", "-c", script,
+		"--with", cuda.UvxCublasFlag,
+		"--from", "whisper-ctranslate2", "python3", "-c", cuda.WhisperWrapperScript,
 		audioPath,
 		"--model", cfg.Model,
-		"--language", lang,
 		"--device", cfg.Device,
 		"--compute_type", cfg.ComputeType,
 		"--output_dir", outDir,
 		"--output_format", "all",
+	}
+	// whisper-ctranslate2 auto-detects language when --language is omitted.
+	if cfg.Language != "" && cfg.Language != "auto" {
+		args = append(args, "--language", cfg.Language)
 	}
 
 	return runUvx(ctx, cfg, "faster-whisper", args, logw)

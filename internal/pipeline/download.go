@@ -22,64 +22,38 @@ const (
 // path to the downloaded audio file together with video metadata.
 // The caller is responsible for deleting the file when done.
 func Download(ctx context.Context, cfg *Config, logw io.Writer) (audioPath string, meta *Metadata, err error) {
-	// 1. Fetch metadata (fast, no download).
-	meta, err = fetchMetadata(ctx, cfg, logw)
-	if err != nil {
-		return "", nil, fmt.Errorf("metadata: %w", err)
-	}
-
-	// 2. Download audio to a temp directory.
 	tmpDir, err := os.MkdirTemp("", "vidscribe-dl-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	audioPath, err = downloadAudio(ctx, cfg, meta.ID, tmpDir, logw)
+	// Single yt-dlp call: download audio + write metadata JSON side-by-side.
+	audioPath, err = downloadAudio(ctx, cfg, tmpDir, logw)
 	if err != nil {
 		os.RemoveAll(tmpDir)
 		return "", nil, err
 	}
 
+	meta, err = parseInfoJSON(tmpDir)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return "", nil, fmt.Errorf("metadata: %w", err)
+	}
+
 	return audioPath, meta, nil
 }
 
-// fetchMetadata runs yt-dlp --dump-json and parses the result.
-func fetchMetadata(ctx context.Context, cfg *Config, logw io.Writer) (*Metadata, error) {
-	args := buildBaseArgs(cfg)
-	args = append(args, "--dump-json", "--no-download", cfg.URL)
-
-	var stdout, stderr bytes.Buffer
-	cmd := YtdlpCmd(ctx, args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if cfg.Verbose {
-		fmt.Fprintf(logw, "[vidscribe] yt-dlp metadata: %s\n", strings.Join(cmd.Args, " "))
-	}
-
-	if err := cmd.Run(); err != nil {
-		errMsg := stderr.String()
-		if isKeyringError(errMsg) {
-			return nil, fmt.Errorf("keyring/cookie-decryption error — export cookies to a file and use --cookies-file: %w", err)
-		}
-		return nil, fmt.Errorf("yt-dlp metadata failed: %s", firstLine(errMsg))
-	}
-
-	var meta Metadata
-	if err := json.Unmarshal(stdout.Bytes(), &meta); err != nil {
-		return nil, fmt.Errorf("parse metadata JSON: %w", err)
-	}
-	return &meta, nil
-}
-
-// downloadAudio downloads the audio track with retry logic for HTTP 403/429.
-func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, logw io.Writer) (string, error) {
+// downloadAudio downloads the audio track with --write-info-json so metadata
+// can be parsed from the sidecar file, eliminating a separate yt-dlp call.
+// Includes retry logic for HTTP 403/429.
+func downloadAudio(ctx context.Context, cfg *Config, destDir string, logw io.Writer) (string, error) {
 	args := buildBaseArgs(cfg)
 	args = append(args,
 		"--no-playlist",
 		"--extract-audio",
 		"--audio-format", "mp3",
 		"--audio-quality", "0",
+		"--write-info-json",
 		"--output", destDir+"/%(id)s.%(ext)s",
 		cfg.URL,
 	)
@@ -112,28 +86,20 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 		cmd.Stderr = &stderr
 
 		if cfg.Verbose {
-			fmt.Fprintf(logw, "[vidscribe] yt-dlp download: %s\n", strings.Join(cmd.Args, " "))
+			fmt.Fprintf(logw, "[vidscribe] yt-dlp: %s\n", strings.Join(cmd.Args, " "))
 		}
 
 		err := cmd.Run()
 		if err == nil {
-			// Find the downloaded file.
-			path := filepath.Join(destDir, videoID+".mp3")
-			if _, statErr := os.Stat(path); statErr == nil {
-				return path, nil
-			}
-			// Try fallback extensions (yt-dlp may keep original container).
-			for _, ext := range []string{"m4a", "opus", "webm"} {
-				p := filepath.Join(destDir, videoID+"."+ext)
-				if _, statErr := os.Stat(p); statErr == nil {
-					return p, nil
-				}
-			}
-			return "", fmt.Errorf("download completed but audio file not found in %s", destDir)
+			return findAudioFile(destDir)
 		}
 
 		errMsg := stderr.String()
-		lastErr = fmt.Errorf("yt-dlp: %s", firstLine(errMsg))
+		errLine := firstLine(errMsg)
+		if errLine == "" {
+			errLine = err.Error()
+		}
+		lastErr = fmt.Errorf("yt-dlp: %s", errLine)
 
 		if isKeyringError(errMsg) && !secretstorageRetried {
 			if cfg.CookiesFile != "" {
@@ -163,6 +129,34 @@ func downloadAudio(ctx context.Context, cfg *Config, videoID, destDir string, lo
 	}
 
 	return "", fmt.Errorf("download failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// findAudioFile locates the downloaded audio file in destDir.
+func findAudioFile(destDir string) (string, error) {
+	for _, ext := range []string{"mp3", "m4a", "opus", "webm"} {
+		matches, _ := filepath.Glob(filepath.Join(destDir, "*."+ext))
+		if len(matches) > 0 {
+			return matches[0], nil
+		}
+	}
+	return "", fmt.Errorf("download completed but audio file not found in %s", destDir)
+}
+
+// parseInfoJSON reads the .info.json sidecar written by --write-info-json.
+func parseInfoJSON(dir string) (*Metadata, error) {
+	matches, _ := filepath.Glob(filepath.Join(dir, "*.info.json"))
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no .info.json found in %s", dir)
+	}
+	data, err := os.ReadFile(matches[0])
+	if err != nil {
+		return nil, fmt.Errorf("read info json: %w", err)
+	}
+	var meta Metadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("parse info json: %w", err)
+	}
+	return &meta, nil
 }
 
 // YtdlpCmd constructs the yt-dlp exec.Cmd using uvx.
@@ -199,7 +193,9 @@ func removeBrowserCookies(args []string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--cookies-from-browser" {
-			i++ // skip the value
+			if i+1 < len(args) {
+				i++ // skip the value
+			}
 			continue
 		}
 		out = append(out, args[i])
