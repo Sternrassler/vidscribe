@@ -20,16 +20,16 @@ test-smoke:
 # Override video: VIDSCRIBE_TEST_URL=https://... make test-e2e
 # Override browser: VIDSCRIBE_TEST_BROWSER=firefox make test-e2e
 test-e2e:
-	go test -tags=e2e ./... -count=1 -v -timeout 600s
+	go test -tags="smoke e2e" ./... -count=1 -v -timeout 600s
 
 # Performance comparison table + Go benchmarks (requires uvx + ffmpeg + network)
 test-bench:
-	go test -tags=e2e ./internal/pipeline/ -run TestE2E_PerformanceComparison -count=1 -v -timeout 600s
-	go test -tags=e2e ./internal/pipeline/ -bench=BenchmarkTranscribe -benchmem -count=1 -timeout 600s
+	go test -tags="smoke e2e" ./internal/pipeline/ -run TestE2E_PerformanceComparison -count=1 -v -timeout 600s
+	go test -tags="smoke e2e" ./internal/pipeline/ -bench=BenchmarkTranscribe -benchmem -count=1 -timeout 600s
 
 # All tests with extended timeout
 test-all:
-	go test -tags=e2e ./... -count=1 -v -timeout 600s
+	go test -tags="smoke e2e" ./... -count=1 -v -timeout 600s
 
 vet:
 	go vet ./...
