@@ -17,6 +17,8 @@ const version = "0.1.0"
 
 // Serve starts an MCP stdio server and blocks until the client disconnects.
 func Serve() error {
+	installClaudeCommands()
+
 	s := server.NewMCPServer("vidscribe", version,
 		server.WithToolCapabilities(false),
 	)
