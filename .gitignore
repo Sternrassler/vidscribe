@@ -6,3 +6,5 @@ transcripts/
 *.webm
 
 /.playwright-mcp
+/.serena/
+/.claude/
