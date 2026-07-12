@@ -113,15 +113,30 @@ yt-dlp ≥ 2025 requires a JavaScript runtime for YouTube extraction. vidscribe 
 
 `--engine parakeet` transcribes with NVIDIA **parakeet-tdt-0.6b-v3** via
 [onnx-asr](https://github.com/istupakov/onnx-asr) (installed on demand through `uvx`,
-like the other engines). Compared to the default whisper-small it is roughly **3× faster
-on CPU** (benchmarked 2026-07-12: 21.4 min German video in 135 s ≈ 9.5× realtime) with
-better accuracy (FLEURS de WER 5.04 % vs. whisper-large-v3 4.30 %, far ahead of
-whisper-small) — and it does not need the GPU at all, which matters when the GPU is
-busy (e.g. a running game).
+like the other engines). Accuracy sits between whisper-medium and whisper-large-v3
+(FLEURS de WER 5.04 % vs. large-v3 4.30 %, far ahead of whisper-small) — without
+touching the GPU, which matters when the GPU is busy (e.g. a running game).
+
+Real-world benchmark (2026-07-12, 21.4 min German video, models cached;
+Ryzen 7 5800X, RTX 5060 8 GB):
+
+| Mode | Time | × realtime | Quality (de) |
+|------|-----:|-----------:|--------------|
+| whisper small CUDA fp16 | 33.5 s | 38× | lowest of these |
+| whisper medium CUDA fp16 | 64 s | 20× | good |
+| **parakeet CPU (VAD)** | **82 s** | **16×** | **between medium and large-v3** |
+| whisper large-v3 CUDA fp16 | 100 s | 13× | best |
+| whisper small CPU int8 | 281 s | 4.6× | lowest of these |
+
+With the GPU occupied by a game (6.5/8 GB VRAM in use), every whisper CUDA run
+crashed with OOM while parakeet still delivered 135 s on the contended CPU —
+parakeet is the robust path on a machine that games.
 
 Notes:
 - CPU-only by design; `--model`, `--device` and `--compute-type` are ignored.
-- Language is auto-detected (25 European languages); `--language` is ignored.
+- Language is auto-detected (25 European languages) **per VAD segment**; `--language` is
+  ignored. Known quirk: a very short trailing segment can flip language (observed: a 1 s
+  splinter "beim nächsten Video" came back as "Next video.").
 - Long audio is chunked with the built-in Silero VAD (required — the model runs out of
   memory beyond ~20 minutes otherwise); segment timestamps feed the `srt`/`vtt` outputs.
 - On failure vidscribe falls back to the regular faster-whisper → openai-whisper chain.
