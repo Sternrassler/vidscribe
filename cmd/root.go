@@ -60,7 +60,7 @@ func init() {
 	rootCmd.Flags().StringVar(&cookiesFile, "cookies-file", "", "Path to Netscape cookie file")
 	rootCmd.Flags().StringVar(&jsRuntime, "js-runtime", "", "JS runtime for yt-dlp extractor args: deno|node")
 	rootCmd.Flags().StringVar(&format, "format", "txt,md", "Output formats: txt,md,json,srt,vtt (comma-separated)")
-	rootCmd.Flags().StringVar(&engine, "engine", "faster", "Whisper engine: faster|openai")
+	rootCmd.Flags().StringVar(&engine, "engine", "faster", "Engine: faster|openai|parakeet (parakeet: CPU-only, auto language, ignores --model/--device)")
 	rootCmd.Flags().StringVar(&device, "device", "auto", "Compute device: cpu|cuda|auto")
 	rootCmd.Flags().StringVar(&computeType, "compute-type", "int8", "Compute type: int8|int8_float16|float16|float32")
 	rootCmd.Flags().BoolVar(&mcpMode, "mcp", false, "Start as MCP server (stdio)")

@@ -55,7 +55,7 @@ func transcribeVideoTool() mcplib.Tool {
 			mcplib.Description("Path to Netscape-format cookie file (fallback when secretstorage is unavailable)"),
 		),
 		mcplib.WithString("engine",
-			mcplib.Description("Whisper engine: faster | openai (default: faster)"),
+			mcplib.Description("Engine: faster | openai | parakeet (default: faster; parakeet = parakeet-tdt-0.6b-v3 via onnx-asr, CPU-only, ~3x faster than whisper-small with better quality, auto language, ignores model/device/compute_type)"),
 		),
 		mcplib.WithString("format",
 			mcplib.Description("Comma-separated output formats: txt, md, json, srt, vtt (default: txt,md)"),
@@ -159,7 +159,7 @@ func checkDependenciesTool() mcplib.Tool {
 	return mcplib.NewTool("check_dependencies",
 		mcplib.WithDescription("Check whether all required tools (uvx, ffmpeg, yt-dlp, faster-whisper) are available."),
 		mcplib.WithString("engine",
-			mcplib.Description("Whisper engine to check: faster | openai (default: faster)"),
+			mcplib.Description("Engine to check: faster | openai | parakeet (default: faster)"),
 		),
 	)
 }
