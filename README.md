@@ -72,7 +72,7 @@ Add to `~/.claude.json`:
 | `cookies_browser` | — | Browser for cookie auth: chrome\|firefox\|safari\|edge\|chromium\|brave\|opera\|vivaldi |
 | `cookies_file` | — | Netscape cookie file |
 | `js_runtime` | auto | JS runtime: `node:/path/to/node` or `deno:/path/to/deno` |
-| `engine` | `faster` | Whisper engine: `faster` or `openai` |
+| `engine` | `faster` | Engine: `faster`, `openai` or `parakeet` |
 | `device` | `auto` | Compute device: `auto`, `cpu`, `cuda`. `auto` selects CUDA if available |
 | `compute_type` | `float16`/`int8` | Quantization: `int8`, `int8_float16`, `float16`, `float32`. Defaults to `float16` for CUDA, `int8` for CPU |
 | `format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
@@ -103,11 +103,28 @@ yt-dlp ≥ 2025 requires a JavaScript runtime for YouTube extraction. vidscribe 
 | `--cookies-file` | — | Netscape cookie file (fallback if secretstorage unavailable) |
 | `--js-runtime` | auto | JS runtime for yt-dlp YouTube extraction: `node:/path/to/node` or `deno:/path/to/deno`. Auto-detected from PATH if omitted |
 | `--format` | `txt,md` | Output formats: txt, md, json, srt, vtt |
-| `--engine` | `faster` | Whisper engine: `faster` or `openai` |
+| `--engine` | `faster` | Engine: `faster`, `openai` or `parakeet` (see below) |
 | `--device` | `auto` | Compute device: `auto`, `cpu`, `cuda`. `auto` selects CUDA if available, otherwise CPU |
 | `--compute-type` | `int8` | Quantization: `int8`, `int8_float16`, `float16`, `float32`. Defaults to `float16` when `--device` is `auto` or `cuda` |
 | `--mcp` | — | Start as MCP server (stdio) |
 | `--verbose` | — | Verbose output |
+
+### Engine `parakeet`
+
+`--engine parakeet` transcribes with NVIDIA **parakeet-tdt-0.6b-v3** via
+[onnx-asr](https://github.com/istupakov/onnx-asr) (installed on demand through `uvx`,
+like the other engines). Compared to the default whisper-small it is roughly **3× faster
+on CPU** (benchmarked 2026-07-12: 21.4 min German video in 135 s ≈ 9.5× realtime) with
+better accuracy (FLEURS de WER 5.04 % vs. whisper-large-v3 4.30 %, far ahead of
+whisper-small) — and it does not need the GPU at all, which matters when the GPU is
+busy (e.g. a running game).
+
+Notes:
+- CPU-only by design; `--model`, `--device` and `--compute-type` are ignored.
+- Language is auto-detected (25 European languages); `--language` is ignored.
+- Long audio is chunked with the built-in Silero VAD (required — the model runs out of
+  memory beyond ~20 minutes otherwise); segment timestamps feed the `srt`/`vtt` outputs.
+- On failure vidscribe falls back to the regular faster-whisper → openai-whisper chain.
 
 ## Testing
 

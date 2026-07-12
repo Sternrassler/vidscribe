@@ -32,21 +32,17 @@ func Transcribe(ctx context.Context, cfg *Config, audioPath string, logw io.Writ
 	baseName := strings.TrimSuffix(filepath.Base(audioPath), filepath.Ext(audioPath))
 
 	var runErr error
-	if cfg.Engine == "openai" {
+	switch {
+	case cfg.Engine == "openai":
 		runErr = runOpenAIWhisper(ctx, cfg, audioPath, tmpDir, logw)
-	} else {
-		runErr = runFasterWhisper(ctx, cfg, audioPath, tmpDir, logw)
-		// whisper-ctranslate2 may exit 0 on silent CUDA errors without writing output.
-		if runErr == nil {
-			expected := filepath.Join(tmpDir, baseName+".txt")
-			if _, statErr := os.Stat(expected); statErr != nil {
-				runErr = fmt.Errorf("faster-whisper produced no output (possible CUDA/library error)")
-			}
-		}
+	case cfg.Engine == "parakeet":
+		runErr = runParakeet(ctx, cfg, audioPath, tmpDir, logw)
 		if runErr != nil {
-			fmt.Fprintf(logw, "[vidscribe] faster-whisper failed (%v) — falling back to openai-whisper\n", runErr)
-			runErr = runOpenAIWhisper(ctx, cfg, audioPath, tmpDir, logw)
+			fmt.Fprintf(logw, "[vidscribe] parakeet failed (%v) — falling back to faster-whisper\n", runErr)
+			runErr = runFasterWhisperWithFallback(ctx, cfg, audioPath, tmpDir, baseName, logw)
 		}
+	default:
+		runErr = runFasterWhisperWithFallback(ctx, cfg, audioPath, tmpDir, baseName, logw)
 	}
 
 	if runErr != nil {
@@ -55,6 +51,24 @@ func Transcribe(ctx context.Context, cfg *Config, audioPath string, logw io.Writ
 	}
 
 	return &TranscribeResult{TempDir: tmpDir, BaseName: baseName}, nil
+}
+
+// runFasterWhisperWithFallback runs whisper-ctranslate2 and falls back to
+// openai-whisper when it fails or silently produces no output.
+func runFasterWhisperWithFallback(ctx context.Context, cfg *Config, audioPath, tmpDir, baseName string, logw io.Writer) error {
+	runErr := runFasterWhisper(ctx, cfg, audioPath, tmpDir, logw)
+	// whisper-ctranslate2 may exit 0 on silent CUDA errors without writing output.
+	if runErr == nil {
+		expected := filepath.Join(tmpDir, baseName+".txt")
+		if _, statErr := os.Stat(expected); statErr != nil {
+			runErr = fmt.Errorf("faster-whisper produced no output (possible CUDA/library error)")
+		}
+	}
+	if runErr != nil {
+		fmt.Fprintf(logw, "[vidscribe] faster-whisper failed (%v) — falling back to openai-whisper\n", runErr)
+		runErr = runOpenAIWhisper(ctx, cfg, audioPath, tmpDir, logw)
+	}
+	return runErr
 }
 
 func runFasterWhisper(ctx context.Context, cfg *Config, audioPath, outDir string, logw io.Writer) error {

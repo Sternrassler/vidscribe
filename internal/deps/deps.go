@@ -43,10 +43,14 @@ func Report(engine string) []DepStatus {
 	}
 
 	whisperProbe := func() DepStatus {
-		if engine == "openai" {
+		switch engine {
+		case "openai":
 			return probeUvxFrom(ctx, "openai-whisper", "openai-whisper", "whisper", "--help")
+		case "parakeet":
+			return probeUvxFrom(ctx, "onnx-asr", "onnx-asr[cpu,hub]", "python3", "-c", "import onnx_asr; print('usage')")
+		default:
+			return probeUvxFrom(ctx, "whisper-ctranslate2", "whisper-ctranslate2", "whisper-ctranslate2", "--help")
 		}
-		return probeUvxFrom(ctx, "whisper-ctranslate2", "whisper-ctranslate2", "whisper-ctranslate2", "--help")
 	}
 
 	probes := []func() DepStatus{
